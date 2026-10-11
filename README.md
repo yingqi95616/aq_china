@@ -24,6 +24,7 @@ All commands below are run from `$AQPGPATH` unless stated otherwise.
 | File | Purpose |
 | --- | --- |
 | `aq_download.py` | Download the latest nationwide station readings. |
+| `history_download.py` | Download the recent (last ~24 h) station history/backfill. |
 | `update_database.py` | Write the downloaded readings into `national_data/` and register new stations. |
 | `run_hourly.sh` | Wrapper: download then update, with locking and logging. |
 | `national_data/` | The database (per-province/city/station yearly CSVs). |
@@ -128,7 +129,48 @@ Columns are tab-separated:
 `CityCode` + the next free 3-digit suffix (the download does not provide one).
 Existing rows are never modified.
 
-## 3. `run_hourly.sh` and crontab
+## 3. `history_download.py`
+
+Downloads recent history for all stations. **Note:** the CNEMC platform only
+keeps roughly the last 24 hours of hourly station snapshots (the
+`GetAQIHistoryByConditionHis` endpoint); it has no multi-year history service.
+This program backfills that recent window and can merge it into the database.
+Long-term records are built up over time by the hourly job.
+
+```bash
+python3 history_download.py                            # last 24 hours
+python3 history_download.py --hours 6                  # last 6 hours
+python3 history_download.py --end "2026-10-11 15:00:00" --hours 3
+python3 history_download.py --update-db                # merge into national_data
+python3 history_download.py --raw-dir raw_history      # also keep raw JSON per hour
+```
+
+Options:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--hours` | `24` | Number of hours to backfill. |
+| `--end` | current hour | End time `YYYY-MM-DD HH:MM:SS` (floored to the hour). |
+| `-o, --output` | `station_history_<stamp>_<n>h.csv` | Combined output file. |
+| `--update-db` | off | Merge the result into the database. |
+| `-d, --data-dir` | `<script dir>/national_data` | Database root / station registry. |
+| `--raw-dir` | none | Also save the raw JSON for each hour. |
+| `--no-live-map` | off | Do not use the live API to fill missing city codes. |
+| `--timeout` / `--retries` | `600` / `3` | Per-request timeout / attempts. |
+
+Notes:
+
+- Each hour returns ~1600 stations and the endpoint is slow (~1.5–3.5 min per
+  request), so a full 24-hour backfill can take 30–60 minutes.
+- The history endpoint does not include `CityCode`, so the program fills it from
+  `national_data/province_city_stations_info.txt`, falling back to the live
+  snapshot for stations not in the registry.
+- Hours with no data are skipped; responses are validated against the requested
+  hour so the latest snapshot is never duplicated across hours.
+- The output CSV uses the same columns as `aq_download.py`, so it also works
+  with `update_database.py` directly.
+
+## 4. `run_hourly.sh` and crontab
 
 `run_hourly.sh` runs the download (to `station_aqi_latest.csv`), then the
 update. On a successful update it syncs `national_data/` to the remote HPC. It

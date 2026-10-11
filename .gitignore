@@ -4,3 +4,4 @@ national_data/
 logs/
 *.tar.gz
 station_aqi_*.csv
+station_history_*.csv
