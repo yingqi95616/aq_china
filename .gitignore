@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+national_data/
+logs/
+*.tar.gz
+station_aqi_*.csv
