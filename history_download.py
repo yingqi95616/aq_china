@@ -132,7 +132,12 @@ def main(argv=None):
     parser.add_argument(
         "--update-db", action="store_true", help="下载后并入 national_data 数据库"
     )
-    parser.add_argument("-d", "--data-dir", help="数据库根目录 (含点位信息文件)")
+    parser.add_argument(
+        "-d",
+        "--data-dir",
+        default="./national_data",
+        help="数据库根目录 (含点位信息文件)",
+    )
     parser.add_argument(
         "--no-live-map",
         action="store_true",
@@ -140,9 +145,7 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    data_dir = args.data_dir or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "national_data"
-    )
+    data_dir = args.data_dir
 
     if args.end:
         try:

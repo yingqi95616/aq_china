@@ -153,7 +153,7 @@ Options:
 | `--end` | current hour | End time `YYYY-MM-DD HH:MM:SS` (floored to the hour). |
 | `-o, --output` | `station_history_<stamp>_<n>h.csv` | Combined output file. |
 | `--update-db` | off | Merge the result into the database. |
-| `-d, --data-dir` | `<script dir>/national_data` | Database root / station registry. |
+| `-d, --data-dir` | `./national_data` | Database root / station registry. |
 | `--raw-dir` | none | Also save the raw JSON for each hour. |
 | `--no-live-map` | off | Do not use the live API to fill missing city codes. |
 | `--timeout` / `--retries` | `600` / `3` | Per-request timeout / attempts. |
