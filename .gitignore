@@ -1,7 +1,9 @@
 __pycache__/
 *.pyc
 national_data/
+national_city_data/
 logs/
 *.tar.gz
 station_aqi_*.csv
 station_history_*.csv
+city_aqi_*.csv
