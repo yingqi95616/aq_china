@@ -25,6 +25,19 @@ cd "$AQPGPATH"
 
 All commands below are run from `$AQPGPATH` unless stated otherwise.
 
+`$REMOTE_AQPGPATH` is the base directory **on the remote host** under which the
+databases are mirrored. It is what the wrapper's `REMOTE_BASE` variable defaults
+to, and the two databases live under it:
+
+```
+$REMOTE_AQPGPATH/national_data        # station database
+$REMOTE_AQPGPATH/national_city_data   # city database
+```
+
+For example, with `REMOTE_BASE=/data/obs/china`, the station data is synced to
+`/data/obs/china/national_data` and the city data to
+`/data/obs/china/national_city_data`.
+
 ## Contents
 
 | File | Purpose |
