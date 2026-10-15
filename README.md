@@ -1,10 +1,16 @@
 # CNEMC Air Quality Downloader & Database Updater
 
-Tools to download China's national real-time station air-quality data and fold it
-into the local `national_data/` database.
+Tools to download China's national air-quality data — real-time **station**
+readings (into `national_data/`) and hourly/daily **city** readings (into
+`national_city_data/`) — and to keep those databases updated on a schedule.
 
-Data source: <https://www.cnemc.cn/sssj/qgkqzlyb/> (redirects to the real-time
-publishing platform `https://air.cnemc.cn:18007/`, page 点位空气质量).
+Data sources:
+
+- Station (点位空气质量): <https://www.cnemc.cn/sssj/qgkqzlyb/> (redirects to
+  `https://air.cnemc.cn:18007/`).
+- City (城市空气质量): the CNEMC homepage API
+  `POST https://www.cnemc.cn/getIndexData.do` (hourly + daily, linked from
+  <https://www.cnemc.cn/sssj/>).
 
 ## Paths
 
@@ -26,15 +32,18 @@ All commands below are run from `$AQPGPATH` unless stated otherwise.
 | `aq_download.py` | Download the latest nationwide station readings. |
 | `history_download.py` | Download the recent (last ~24 h) station history/backfill. |
 | `update_database.py` | Write the downloaded readings into `national_data/` and register new stations. |
-| `run_hourly.sh` | Wrapper: download then update, with locking and logging. |
-| `national_data/` | The database (per-province/city/station yearly CSVs). |
+| `city_download.py` | Download hourly/daily city readings and update `national_city_data/`. |
+| `run_hourly.sh` | Wrapper: download then update (station + city), with locking and syncing. |
+| `national_data/` | Station database (per-province/city/station yearly CSVs). |
+| `national_city_data/` | City database (per-province/city yearly CSVs). |
 | `logs/hourly.log` | Output of scheduled runs. |
 
 ## Requirements
 
 - Python 3.8+
-- `requests` (only `aq_download.py` needs it; `update_database.py` is stdlib-only)
-- Optional: `pandas` + `openpyxl` for Excel export (`aq_download.py -f xlsx`)
+- `requests` (needed by `aq_download.py`, `history_download.py`,
+  `city_download.py`; `update_database.py` is stdlib-only)
+- Optional: `pandas` + `openpyxl` for Excel export (`-f xlsx`)
 
 ```bash
 python3 -m pip install requests
@@ -170,11 +179,59 @@ Notes:
 - The output CSV uses the same columns as `aq_download.py`, so it also works
   with `update_database.py` directly.
 
-## 4. `run_hourly.sh` and crontab
+## 4. `city_download.py`
 
-`run_hourly.sh` runs the download (to `station_aqi_latest.csv`), then the
-update. On a successful update it syncs `national_data/` to the remote HPC. It
-uses `flock` to prevent overlapping runs and appends output to `logs/hourly.log`.
+Downloads **city-level** air quality from the CNEMC homepage API
+(`POST https://www.cnemc.cn/getIndexData.do`). It requires a browser
+`User-Agent`/`Referer`/`Origin` (the endpoint is behind a WAF). Two feeds:
+
+- `-t hourly` (default): `airList` — the current hour for ~338 cities, with AQI,
+  level, primary pollutant and PM2.5 / PM10 / SO2 / NO2 / CO / O3.
+- `-t daily`: `dayAirList` — the latest 城市空气日报 (daily AQI, level and
+  primary pollutant per city).
+
+```bash
+python3 city_download.py                          # hourly -> CSV
+python3 city_download.py -t daily                 # daily report -> CSV
+python3 city_download.py -o city.csv -f json      # raw JSON
+python3 city_download.py --update-db              # merge into national_city_data
+python3 city_download.py --update-db --no-save
+```
+
+Options:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `-t, --type` | `hourly` | `hourly` (城市小时报) or `daily` (城市空气日报). |
+| `-o, --output` | `city_aqi_<type>_<timestamp>.<fmt>` | Output file. |
+| `-f, --format` | `csv` | `csv`, `json`, or `xlsx`. |
+| `--update-db` | off | Write hourly data into `national_city_data` (hourly only). |
+| `-d, --data-dir` | `./national_city_data` | City database root. |
+| `--local-place` | `北京` | City used to locate the homepage data. |
+| `--timeout` / `--retries` | `120` / `3` | Per-request timeout / attempts. |
+| `--no-save` | off | Do not write a file; only print the summary. |
+
+### City database layout
+
+```
+national_city_data/<ProvinceCode>/<CityCode>/<year>.csv
+```
+
+Same schema as `national_data` (`datetime,pm25,pm10,o3,co,so2,no2`, full-year
+hourly grid; there is no station level). `--update-db` writes the current hour
+and is idempotent; a new year file is created with a complete grid. New cities
+are registered in `national_city_data/cities_info.txt`, tab-separated:
+`ProvinceCode  ProvinceName  CityCode  CityName`.
+
+Only the latest hour (or day) is returned, so history is built up over
+successive runs.
+
+## 5. `run_hourly.sh` and crontab
+
+`run_hourly.sh` performs both pipelines: station data (`aq_download.py` then
+`update_database.py`) and city data (`city_download.py --update-db`). On success
+it syncs `national_data/` and `national_city_data/` to the remote HPC. It uses
+`flock` to prevent overlapping runs and appends output to `logs/hourly.log`.
 
 Run manually:
 
@@ -185,15 +242,17 @@ tail -f "$AQPGPATH/logs/hourly.log"
 
 ### Remote sync
 
-After each successful update the wrapper mirrors `national_data/` to:
+After each successful update the wrapper mirrors both databases to:
 
 ```
 qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_data
+qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_city_data
 ```
 
 It uses `rsync -rltz` over SSH (passwordless login is assumed), so only new and
-changed files are transferred; nothing is deleted on the remote. The remote
-directory is created if missing. Sync is skipped if the download or update fails.
+changed files are transferred; nothing is deleted on the remote. Each remote
+directory is created if missing. Sync is skipped if the corresponding download or
+update fails.
 
 The behaviour can be overridden with environment variables (e.g. in the crontab
 line or your shell):
@@ -203,7 +262,9 @@ line or your shell):
 | `SYNC_REMOTE` | `1` | Set to `0` to disable the remote copy. |
 | `REMOTE_USER` | `qying` | SSH user. |
 | `REMOTE_HOST` | `hpc4.ust.hk` | SSH host. |
-| `REMOTE_DIR` | `/project/hkustaqmodel/data/obs_data/china/national_data` | Destination directory. |
+| `REMOTE_BASE` | `/project/hkustaqmodel/data/obs_data/china` | Base remote directory. |
+| `REMOTE_DIR` | `$REMOTE_BASE/national_data` | Station database destination. |
+| `REMOTE_CITY_DIR` | `$REMOTE_BASE/national_city_data` | City database destination. |
 | `PY` | interpreter baked into `run_hourly.sh` | Python used to run the scripts; override if yours lives elsewhere (cron may not have your env on `PATH`). |
 
 Test connectivity before relying on cron:
@@ -217,6 +278,8 @@ A one-off manual sync (useful for the large first copy) can be run directly:
 ```bash
 rsync -rltz --stats "$AQPGPATH/national_data/" \
   qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_data/
+rsync -rltz --stats "$AQPGPATH/national_city_data/" \
+  qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_city_data/
 ```
 
 ### Set up the hourly cron job
