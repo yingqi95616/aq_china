@@ -25,13 +25,13 @@ cd "$AQPGPATH"
 
 All commands below are run from `$AQPGPATH` unless stated otherwise.
 
-`$REMOTE_AQPGPATH` is the base directory **on the remote host** under which the
-databases are mirrored. It is what the wrapper's `REMOTE_BASE` variable defaults
-to, and the two databases live under it:
+`$REMOTE_BASE` is the base directory **on the remote host** under which the
+databases are mirrored (the wrapper's `REMOTE_BASE` variable), with the two
+databases living under it:
 
 ```
-$REMOTE_AQPGPATH/national_data        # station database
-$REMOTE_AQPGPATH/national_city_data   # city database
+$REMOTE_BASE/national_data        # station database
+$REMOTE_BASE/national_city_data   # city database
 ```
 
 For example, with `REMOTE_BASE=/data/obs/china`, the station data is synced to
@@ -258,8 +258,8 @@ tail -f "$AQPGPATH/logs/hourly.log"
 After each successful update the wrapper mirrors both databases to:
 
 ```
-<user_id>@<host_address>:$REMOTE_AQPGPATH/national_data
-<user_id>@<host_address>:$REMOTE_AQPGPATH/national_city_data
+<user_id>@<host_address>:$REMOTE_BASE/national_data
+<user_id>@<host_address>:$REMOTE_BASE/national_city_data
 ```
 
 It uses `rsync -rltz` over SSH (passwordless login is assumed), so only new and
@@ -275,7 +275,7 @@ line or your shell):
 | `SYNC_REMOTE` | `1` | Set to `0` to disable the remote copy. |
 | `REMOTE_USER` | `<user_id>` | SSH user. |
 | `REMOTE_HOST` | `<host_address>` | SSH host. |
-| `REMOTE_BASE` | `$REMOTE_AQPGPATH` | Base remote directory. |
+| `REMOTE_BASE` | your remote base path | Base remote directory (the DBs below live under it). |
 | `REMOTE_DIR` | `$REMOTE_BASE/national_data` | Station database destination. |
 | `REMOTE_CITY_DIR` | `$REMOTE_BASE/national_city_data` | City database destination. |
 | `PY` | interpreter baked into `run_hourly.sh` | Python used to run the scripts; override if yours lives elsewhere (cron may not have your env on `PATH`). |
@@ -290,9 +290,9 @@ A one-off manual sync (useful for the large first copy) can be run directly:
 
 ```bash
 rsync -rltz --stats "$AQPGPATH/national_data/" \
-  <user_id>@<host_address>:$REMOTE_AQPGPATH/national_data/
+  <user_id>@<host_address>:$REMOTE_BASE/national_data/
 rsync -rltz --stats "$AQPGPATH/national_city_data/" \
-  <user_id>@<host_address>:$REMOTE_AQPGPATH/national_city_data/
+  <user_id>@<host_address>:$REMOTE_BASE/national_city_data/
 ```
 
 ### Set up the hourly cron job
