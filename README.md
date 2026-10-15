@@ -245,8 +245,8 @@ tail -f "$AQPGPATH/logs/hourly.log"
 After each successful update the wrapper mirrors both databases to:
 
 ```
-qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_data
-qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_city_data
+<user_id>@<host_address>:/project/hkustaqmodel/data/obs_data/china/national_data
+<user_id>@<host_address>:/project/hkustaqmodel/data/obs_data/china/national_city_data
 ```
 
 It uses `rsync -rltz` over SSH (passwordless login is assumed), so only new and
@@ -260,8 +260,8 @@ line or your shell):
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SYNC_REMOTE` | `1` | Set to `0` to disable the remote copy. |
-| `REMOTE_USER` | `qying` | SSH user. |
-| `REMOTE_HOST` | `hpc4.ust.hk` | SSH host. |
+| `REMOTE_USER` | `<user_id>` | SSH user. |
+| `REMOTE_HOST` | `<host_address>` | SSH host. |
 | `REMOTE_BASE` | `/project/hkustaqmodel/data/obs_data/china` | Base remote directory. |
 | `REMOTE_DIR` | `$REMOTE_BASE/national_data` | Station database destination. |
 | `REMOTE_CITY_DIR` | `$REMOTE_BASE/national_city_data` | City database destination. |
@@ -270,16 +270,16 @@ line or your shell):
 Test connectivity before relying on cron:
 
 ```bash
-ssh -o BatchMode=yes qying@hpc4.ust.hk true && echo ok
+ssh -o BatchMode=yes <user_id>@<host_address> true && echo ok
 ```
 
 A one-off manual sync (useful for the large first copy) can be run directly:
 
 ```bash
 rsync -rltz --stats "$AQPGPATH/national_data/" \
-  qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_data/
+  <user_id>@<host_address>:/project/hkustaqmodel/data/obs_data/china/national_data/
 rsync -rltz --stats "$AQPGPATH/national_city_data/" \
-  qying@hpc4.ust.hk:/project/hkustaqmodel/data/obs_data/china/national_city_data/
+  <user_id>@<host_address>:/project/hkustaqmodel/data/obs_data/china/national_city_data/
 ```
 
 ### Set up the hourly cron job
